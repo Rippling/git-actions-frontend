@@ -3,6 +3,10 @@ import * as github from "@actions/github";
 import * as yaml from "js-yaml";
 import { Minimatch } from "minimatch";
 import _ from 'lodash';
+import {strict} from "assert";
+
+const INNER_HTML_REGEX = /^\+.*(dangerouslySetInnerHTML|innerHTML).*$/gm;
+const FILE_EXTENSION = /\.(jsx?|tsx?)$/;
 
 async function run() {
   try {
@@ -55,26 +59,40 @@ async function getReviewers(client: github.GitHub, reviewTeamSlug: string): Prom
 async function getChangedFiles(
   client: github.GitHub,
   prNumber: number
-): Promise<string[]> {
+) {
   const listFilesResponse = await client.pulls.listFiles({
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
     pull_number: prNumber
   });
-  const changedFiles = listFilesResponse.data.map(f => f.filename);
-  return changedFiles;
+  return listFilesResponse.data;
 }
 
-function hasReviewableChanges(changedFiles: string[]): boolean {
+function hasReviewableChanges(changedFiles): boolean {
   if (_.isEmpty(changedFiles)) {
     return false
   }
-  return _.some(changedFiles, fileName => _.includes(fileName, 'app/modules/Common'));
-  // return _.some(changedFiles, fileName => (
-  //   _.endsWith(fileName, '.scss')
-  //   || _.endsWith(fileName, '.css')
-  //   || _.includes(fileName, 'app/modules/Common')
+  return changedFiles.some(file => _.includes(file.filename, 'app/modules/Common'));
+  // return _.some(changedFiles, filename => (
+  //   _.endsWith(filename, '.scss')
+  //   || _.endsWith(filename, '.css')
+  //   || _.includes(filename, 'app/modules/Common')
   // ));
+}
+
+function hasInnerHTMLAdded(changedFiles) {
+  const innerHTMLAddedFiles: string[]  = [];
+
+  if (_.isEmpty(changedFiles)) {
+    return innerHTMLAddedFiles
+  }
+
+  changedFiles.forEach((file: Record<string, string>) => {
+    if (file.patch && FILE_EXTENSION.test(file.filename) && INNER_HTML_REGEX.test(file.patch)) {
+        innerHTMLAddedFiles.push(file.filename);
+    }
+  });
+  return innerHTMLAddedFiles;
 }
 
 async function addReviewers(client: github.GitHub, prNumber: number, coreReviewers: string) {
@@ -140,15 +158,17 @@ async function handlePushEvent(client: github.GitHub, teamName: string, coreRevi
     return;
   }
   console.log(`PROCESSING: Fetching changed files for PR:#${pullRequest.number}`);
-  const changedFiles: string[] = await getChangedFiles(client, pullRequest.number);
-  const hasChanges: boolean = hasReviewableChanges(changedFiles);
-  if (hasChanges) {
+  const changedFiles = await getChangedFiles(client, pullRequest.number);
+  const hasChangesInCommonFolder = hasReviewableChanges(changedFiles);
+  const innerHTMLAddedFiles = hasInnerHTMLAdded(changedFiles).join(', ');
+
+  if (hasChangesInCommonFolder || innerHTMLAddedFiles) {
     const isApproved = await checkApprovalForSHA(client, pullRequest.number, github.context.sha, additionalReviewers, reviewTeamSlug);
     if (isApproved) {
       console.log(`SUCCESS: ${teamName} approved changes.`);
     } else {
       await addReviewers(client, pullRequest.number, coreReviewers);
-      core.setFailed(`ERROR: ${teamName} approval needed`);
+      innerHTMLAddedFiles ? core.setFailed(`ERROR: innerHTML is added in ${innerHTMLAddedFiles}, ${teamName} approval needed`) : core.setFailed(`ERROR: ${teamName} approval needed`);
     }
   } else {
     console.log(`SUCCESS: No approval needed from ${teamName}.}`);
