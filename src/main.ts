@@ -3,7 +3,6 @@ import * as github from "@actions/github";
 import * as yaml from "js-yaml";
 import { Minimatch } from "minimatch";
 import _ from 'lodash';
-import {strict} from "assert";
 
 const INNER_HTML_REGEX = /^\+.*(dangerouslySetInnerHTML|innerHTML).*$/gm;
 const FILE_EXTENSION = /\.(jsx?|tsx?)$/;
@@ -92,6 +91,11 @@ function hasInnerHTMLAdded(changedFiles) {
         innerHTMLAddedFiles.push(file.filename);
     }
   });
+
+  if (innerHTMLAddedFiles.length) {
+    console.log(`WARNING: innerHTML updated in following files ${innerHTMLAddedFiles.join(', ')}.`);
+  }
+
   return innerHTMLAddedFiles;
 }
 
@@ -168,7 +172,7 @@ async function handlePushEvent(client: github.GitHub, teamName: string, coreRevi
       console.log(`SUCCESS: ${teamName} approved changes.`);
     } else {
       await addReviewers(client, pullRequest.number, coreReviewers);
-      innerHTMLAddedFiles ? core.setFailed(`ERROR: innerHTML is added in ${innerHTMLAddedFiles}, ${teamName} approval needed`) : core.setFailed(`ERROR: ${teamName} approval needed`);
+      innerHTMLAddedFiles ? core.setFailed(`ERROR: innerHTML is added/updated, ${teamName} approval needed`) : core.setFailed(`ERROR: ${teamName} approval needed`);
     }
   } else {
     console.log(`SUCCESS: No approval needed from ${teamName}.}`);
