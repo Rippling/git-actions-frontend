@@ -133,11 +133,15 @@ async function reTriggerFrontendCheck(client: github.GitHub) {
     const reviewCheck = _.find(checkListResponse.data.check_runs, { name: 'FrontendReviewStatus' });
     if (reviewCheck) {
       console.log(`LOG: Re-triggering Review Check ${reviewCheck.name}`);
-      await client.checks.rerequestSuite({
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-        check_suite_id: reviewCheck.check_suite.id
-      });
+      try {
+        await client.checks.rerequestSuite({
+          owner: github.context.repo.owner,
+          repo: github.context.repo.repo,
+          check_suite_id: reviewCheck.check_suite.id
+        });
+      } catch (error) {
+        console.log(error.message)
+      }
     } else {
       console.log(checkListResponse.data.check_runs);
       core.setFailed('ERROR: No matching check found.');
