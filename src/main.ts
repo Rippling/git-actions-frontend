@@ -1,11 +1,10 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import * as yaml from "js-yaml";
-import { Minimatch } from "minimatch";
 import _ from 'lodash';
 
 const INNER_HTML_REGEX = /^\+.*(dangerouslySetInnerHTML|innerHTML).*$/gm;
 const FILE_EXTENSION = /\.(jsx?|tsx?)$/;
+const ABSOLUTE_FILE_NAME_PATHS = ['package.json', 'package-lock.json']
 
 async function run() {
   try {
@@ -71,12 +70,10 @@ function hasReviewableChanges(changedFiles): boolean {
   if (_.isEmpty(changedFiles)) {
     return false
   }
-  return changedFiles.some(file => _.includes(file.filename, 'app/modules/Common'));
-  // return _.some(changedFiles, filename => (
-  //   _.endsWith(filename, '.scss')
-  //   || _.endsWith(filename, '.css')
-  //   || _.includes(filename, 'app/modules/Common')
-  // ));
+  return changedFiles.some(file => {
+    const { filename } = file;
+    return ABSOLUTE_FILE_NAME_PATHS.includes(filename) || _.includes(filename, 'app/modules/Common')
+  });
 }
 
 function hasInnerHTMLAdded(changedFiles) {
