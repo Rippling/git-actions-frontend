@@ -4,6 +4,7 @@ import _ from 'lodash';
 
 const INNER_HTML_REGEX = /^\+.*(dangerouslySetInnerHTML|innerHTML).*$/gm;
 const FILE_EXTENSION = /\.(jsx?|tsx?)$/;
+const STYLE_FILE_EXTENSION = /\.(scss|css?)$/;
 const ABSOLUTE_FILE_NAME_PATHS = ['package.json', 'package-lock.json']
 
 async function run() {
@@ -72,7 +73,7 @@ function hasReviewableChanges(changedFiles): boolean {
   }
   return changedFiles.some(file => {
     const { filename } = file;
-    return ABSOLUTE_FILE_NAME_PATHS.includes(filename) || _.includes(filename, 'app/modules/Common')
+    return ABSOLUTE_FILE_NAME_PATHS.includes(filename) || STYLE_FILE_EXTENSION.test(file.filename) || _.includes(filename, 'app/modules/Common')
   });
 }
 
